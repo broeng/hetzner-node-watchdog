@@ -17,7 +17,7 @@
 
         hetzner-node-watchdog = pkgs.buildGoModule {
           pname = "hetzner-node-watchdog";
-          version = "0.1.0";
+          version = "0.1.1";
 
           src = ./.;
           go = pkgs.go_1_26;
@@ -40,7 +40,7 @@
         # name/version come from deploy/Chart.yaml.
         chart = pkgs.stdenvNoCC.mkDerivation {
           pname = "hetzner-node-watchdog-chart";
-          version = "0.1.0";
+          version = "0.1.1";
 
           src = ./deploy;
           nativeBuildInputs = [ pkgs.kubernetes-helm ];
