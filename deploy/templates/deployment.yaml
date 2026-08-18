@@ -64,7 +64,10 @@ spec:
           image: "{{ $root.Values.image.repository }}:{{ $root.Values.image.tag }}"
           imagePullPolicy: {{ $root.Values.image.pullPolicy }}
           env:
-            - name: HCLOUD_TOKEN
+            # gonfig reads this directly (EnvPrefix "NODE_WATCHDOG_" + id
+            # "hcloud-token"); kept out of args entirely so the token never
+            # appears in the pod spec or process argv at all.
+            - name: NODE_WATCHDOG_HCLOUD_TOKEN
               valueFrom:
                 secretKeyRef:
                   name: {{ include "hetzner-node-watchdog.secretName" $root }}
@@ -72,9 +75,7 @@ spec:
           # Builds and runs the app straight from its flake on every pod start
           # (no pre-built image); the "--" hands everything after it to the
           # binary itself. Each arg below corresponds 1:1 to a CLI flag of the
-          # application (see internal/config/config.go). The secret token is
-          # sourced from the env var above via $(...) substitution instead of
-          # being templated directly, so it never appears in the pod spec.
+          # application (see internal/config/config.go).
           command:
             - nix
           args:
@@ -90,7 +91,6 @@ spec:
             - --timeout-duration={{ $config.timeoutDuration }}
             - --grace-period={{ $config.gracePeriod }}
             - --poll-interval={{ $config.pollInterval }}
-            - --hcloud-token=$(HCLOUD_TOKEN)
           resources:
             {{- toYaml $root.Values.resources | nindent 12 }}
 {{- end -}}

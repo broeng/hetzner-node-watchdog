@@ -78,9 +78,10 @@ helm install hetzner-node-watchdog ./deploy \
   --set hcloud.token=$NODE_WATCHDOG_HCLOUD_TOKEN
 ```
 
-The Hetzner token is always injected via a Secret and referenced through
-`$(HCLOUD_TOKEN)` in the container args, never templated into the pod spec
-directly. Set `hcloud.existingSecret` (+ `hcloud.existingSecretKey`, default
+The Hetzner token is always injected via a Secret into the
+`NODE_WATCHDOG_HCLOUD_TOKEN` env var (which gonfig reads directly), never
+passed as a `--hcloud-token` arg or templated into the pod spec in plaintext.
+Set `hcloud.existingSecret` (+ `hcloud.existingSecretKey`, default
 `hcloud-token`) instead of `hcloud.token` to reference a Secret you manage
 yourself. The chart also creates the ServiceAccount and the minimal
 ClusterRole it needs (`get`/`watch`/`list` on `nodes`).
