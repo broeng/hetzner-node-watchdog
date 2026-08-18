@@ -33,12 +33,42 @@
             mainProgram = "hetzner-node-watchdog";
           };
         };
+
+        # Packages deploy/ (a Helm chart) into a .tgz via `helm package`, the same
+        # way `helm push`/OCI publishing or a manual install would consume it.
+        # Version here is nix store metadata only; the packaged chart's actual
+        # name/version come from deploy/Chart.yaml.
+        chart = pkgs.stdenvNoCC.mkDerivation {
+          pname = "hetzner-node-watchdog-chart";
+          version = "0.1.0";
+
+          src = ./deploy;
+          nativeBuildInputs = [ pkgs.kubernetes-helm ];
+
+          dontBuild = true;
+
+          installPhase = ''
+            runHook preInstall
+            mkdir -p $out
+            # hcloud.token is unset in the chart's own defaults by design (it is
+            # required at install time, not baked into the chart); supply a
+            # throwaway value purely so lint can render the templates.
+            helm lint . --set hcloud.token=lint-placeholder
+            helm package . --destination $out
+            runHook postInstall
+          '';
+
+          meta = {
+            description = "Helm chart for hetzner-node-watchdog";
+            homepage = "https://github.com/broeng/hetzner-node-watchdog";
+          };
+        };
       in
       {
 
         packages = {
           default = hetzner-node-watchdog;
-          inherit hetzner-node-watchdog;
+          inherit hetzner-node-watchdog chart;
         };
 
         formatter = pkgs.nixfmt-tree;

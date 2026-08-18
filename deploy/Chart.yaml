@@ -1,0 +1,9 @@
+apiVersion: v2
+name: hetzner-node-watchdog
+description: Restarts the Hetzner Cloud server behind a Kubernetes node that stays unavailable too long
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+home: https://github.com/broeng/hetzner-node-watchdog
+sources:
+  - https://github.com/broeng/hetzner-node-watchdog

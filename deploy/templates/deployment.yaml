@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "hetzner-node-watchdog.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "hetzner-node-watchdog.labels" . | nindent 4 }}
+spec:
+  # Exactly one replica: restart scheduling is kept in memory per pod with no
+  # leader election, so running more than one pod risks duplicate/racing
+  # restart attempts.
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      {{- include "hetzner-node-watchdog.selectorLabels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "hetzner-node-watchdog.selectorLabels" . | nindent 8 }}
+        {{- with .Values.podLabels }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "hetzner-node-watchdog.serviceAccountName" . }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: {{ .Chart.Name }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          env:
+            - name: HCLOUD_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "hetzner-node-watchdog.secretName" . }}
+                  key: {{ include "hetzner-node-watchdog.secretKey" . }}
+          # Builds and runs the app straight from its flake on every pod start
+          # (no pre-built image); the "--" hands everything after it to the
+          # binary itself. Each arg below corresponds 1:1 to a CLI flag of the
+          # application (see internal/config/config.go). The secret token is
+          # sourced from the env var above via $(...) substitution instead of
+          # being templated directly, so it never appears in the pod spec.
+          command:
+            - nix
+          args:
+            - run
+            - --extra-experimental-features
+            - "flakes nix-command"
+            - {{ .Values.flakeRef }}
+            - --
+            - --log-level={{ .Values.config.logLevel }}
+            - --node-label-selector={{ .Values.config.nodeLabelSelector }}
+            - --timeout-duration={{ .Values.config.timeoutDuration }}
+            - --grace-period={{ .Values.config.gracePeriod }}
+            - --poll-interval={{ .Values.config.pollInterval }}
+            - --hcloud-token=$(HCLOUD_TOKEN)
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}

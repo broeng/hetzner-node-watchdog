@@ -1,0 +1,13 @@
+hetzner-node-watchdog is deployed and watching node Ready status in namespace {{ .Release.Namespace }}.
+
+It matches Kubernetes nodes to Hetzner Cloud servers by name, and will restart
+the server behind any node that stays unavailable for longer than
+{{ .Values.config.timeoutDuration }} (--timeout-duration), waiting
+{{ .Values.config.gracePeriod }} (--grace-period) after each restart before
+trying again.
+
+Check logs with:
+  kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "hetzner-node-watchdog.fullname" . }} -f
+
+Only one replica should ever run: restart scheduling is kept in memory per
+pod with no leader election.

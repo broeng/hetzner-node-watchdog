@@ -1,0 +1,65 @@
+# The app runs via `nix run` against this flake ref (see templates/deployment.yaml
+# command/args) rather than a pre-built image. Defaults to the main branch; pin it
+# to a tag or commit for reproducible restarts, e.g.
+# "github:broeng/hetzner-node-watchdog/v0.1.0" or ".../<commit-sha>".
+flakeRef: github:broeng/hetzner-node-watchdog
+
+# Just the base image nix itself runs in - not the app's own version, see flakeRef.
+image:
+  repository: nixos/nix
+  tag: latest
+  pullPolicy: IfNotPresent
+
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  # -- Defaults to the chart's fullname when empty
+  name: ""
+  annotations: {}
+
+# Exactly one replica: restart scheduling is kept in memory per pod with no
+# leader election, so running more than one pod risks duplicate/racing
+# restart attempts. This is intentionally not exposed as a values setting.
+
+resources:
+  requests:
+    memory: 32Mi
+    cpu: 25m
+  limits:
+    memory: 64Mi
+    cpu: 100m
+
+podAnnotations: {}
+podLabels: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
+
+# Hetzner Cloud API token, passed to the container as the --hcloud-token flag
+# via a Secret (never stored directly in the pod spec). Provide exactly one of:
+#  - hcloud.token: the chart creates a Secret from this value
+#  - hcloud.existingSecret (+ existingSecretKey): reference a Secret you manage yourself
+hcloud:
+  token: ""
+  existingSecret: ""
+  existingSecretKey: hcloud-token
+
+# Mirrors the application's own CLI flags 1:1 (run `hetzner-node-watchdog --help`
+# for the authoritative list); each of these is rendered as a --flag=value
+# argument on the container.
+config:
+  # -- --log-level: log verbosity (debug/info/warn/error)
+  logLevel: info
+  # -- --node-label-selector: label selector restricting which nodes are
+  # watched; empty means all nodes in the cluster
+  nodeLabelSelector: ""
+  # -- --timeout-duration: how long a node may stay NotReady before its
+  # Hetzner server is restarted (Go duration, e.g. "5m", "90s")
+  timeoutDuration: 10m
+  # -- --grace-period: how long to wait after a restart before restarting
+  # again if the node is still unavailable
+  gracePeriod: 10m
+  # -- --poll-interval: how often to check for nodes due a restart
+  pollInterval: 60s
