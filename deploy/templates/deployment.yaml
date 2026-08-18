@@ -96,6 +96,12 @@ spec:
             - name: http-health
               containerPort: {{ $config.healthListenPort }}
               protocol: TCP
+          startupProbe:
+            httpGet:
+              path: /healthz
+              port: http-health
+            periodSeconds: {{ $root.Values.probes.startupPeriodSeconds }}
+            failureThreshold: {{ $root.Values.probes.startupFailureThreshold }}
           # /healthz always returns 200 once the process is up; /readyz only turns
           # healthy once the node informer has completed its initial sync (see
           # internal/health and nodecontroller.Controller.HasSynced).
@@ -103,13 +109,11 @@ spec:
             httpGet:
               path: /healthz
               port: http-health
-            initialDelaySeconds: 10
             periodSeconds: 15
           readinessProbe:
             httpGet:
               path: /readyz
               port: http-health
-            initialDelaySeconds: 5
             periodSeconds: 10
             failureThreshold: 3
           resources:

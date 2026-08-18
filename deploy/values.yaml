@@ -28,6 +28,10 @@ resources:
     memory: 64Mi
     cpu: 50m
 
+probes:
+  startupPeriodSeconds: 10
+  startupFailureThreshold: 60 # ~10 minutes
+
 podAnnotations: {}
 podLabels: {}
 nodeSelector: {}
