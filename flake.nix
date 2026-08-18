@@ -40,7 +40,7 @@
         # name/version come from deploy/Chart.yaml.
         chart = pkgs.stdenvNoCC.mkDerivation {
           pname = "hetzner-node-watchdog-chart";
-          version = "0.1.2";
+          version = "0.1.3";
 
           src = ./deploy;
           nativeBuildInputs = [ pkgs.kubernetes-helm ];
