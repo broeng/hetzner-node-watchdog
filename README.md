@@ -106,4 +106,3 @@ go mod tidy   # resolves go.sum; not committed here since this scaffold was
 go build .
 ```
 
-Or via Docker: `docker build -t hetzner-node-watchdog .`
