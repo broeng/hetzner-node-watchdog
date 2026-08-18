@@ -91,6 +91,27 @@ spec:
             - --timeout-duration={{ $config.timeoutDuration }}
             - --grace-period={{ $config.gracePeriod }}
             - --poll-interval={{ $config.pollInterval }}
+            - --port={{ $config.healthListenPort }}
+          ports:
+            - name: http-health
+              containerPort: {{ $config.healthListenPort }}
+              protocol: TCP
+          # /healthz always returns 200 once the process is up; /readyz only turns
+          # healthy once the node informer has completed its initial sync (see
+          # internal/health and nodecontroller.Controller.HasSynced).
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http-health
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http-health
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            failureThreshold: 3
           resources:
             {{- toYaml $root.Values.resources | nindent 12 }}
 {{- end -}}

@@ -47,11 +47,24 @@ or a config file, in increasing order of priority.
 | `NODE_WATCHDOG_TIMEOUT_DURATION`    | `--timeout-duration`    | How long a node may stay `NotReady` before its server is restarted       | `10m`   |
 | `NODE_WATCHDOG_GRACE_PERIOD`        | `--grace-period`        | How long to wait after a restart before restarting again if still down   | `10m`   |
 | `NODE_WATCHDOG_LOG_LEVEL`           | `--log-level` / `-l`    | Log verbosity (`debug`/`info`/`warn`/`error`)                            | `info`  |
+| `NODE_WATCHDOG_PORT`                | `--port`                | Listen port for the HTTP health service                                  | `8080`  |
 
 Durations use Go's [`time.ParseDuration`](https://pkg.go.dev/time#ParseDuration)
 format (e.g. `90s`, `5m`, `1h30m`).
 
 Run `./hetzner-node-watchdog --help` for the full, current list of flags.
+
+## Health checks
+
+The process runs an HTTP server with two endpoints for Kubernetes probes:
+
+- `/healthz` — liveness: always `200 OK` once the process is up.
+- `/readyz` — readiness: `200 OK` once the node informer has completed its
+  initial sync (i.e. the controller has a working view of the cluster's
+  nodes), `503` otherwise. Checked every 5s.
+
+The Helm chart wires both into the container's `livenessProbe`/`readinessProbe`
+automatically.
 
 ## Running
 

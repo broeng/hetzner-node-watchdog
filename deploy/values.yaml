@@ -63,6 +63,9 @@ config:
   gracePeriod: 10m
   # -- --poll-interval: how often to check for nodes due a restart
   pollInterval: 60s
+  # -- --port: listen port for the HTTP health service (/healthz, /readyz),
+  # used for the container's liveness/readiness probes
+  healthListenPort: 8080
 
 # Optional second "secondary" instance for redundancy without leader
 # election: give it a much longer timeoutDuration/gracePeriod than the

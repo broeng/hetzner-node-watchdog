@@ -3,6 +3,7 @@ package nodecontroller
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/hetznercloud/hcloud-go/hcloud"
@@ -34,6 +35,11 @@ type Controller struct {
 
 	state   map[string]*nodeState
 	stateMu sync.RWMutex
+
+	// informer is written once from Run's goroutine and read from HasSynced,
+	// which the health service polls from a different goroutine (see
+	// internal/health); atomic.Value avoids a data race between the two.
+	informer atomic.Value // cache.SharedIndexInformer
 }
 
 func New(logger logrus.FieldLogger, k8s kubernetes.Interface, hcc *hcloud.Client) *Controller {
@@ -56,6 +62,7 @@ func (c *Controller) Run(ctx context.Context) {
 		}),
 	)
 	nodeInformer := factory.Core().V1().Nodes().Informer()
+	c.informer.Store(nodeInformer)
 
 	nodeInformer.AddEventHandler(cache.ResourceEventHandlerFuncs{
 		AddFunc: func(newObj interface{}) {
@@ -93,6 +100,14 @@ func (c *Controller) Run(ctx context.Context) {
 	go c.runRestartLoop(ctx)
 
 	nodeInformer.Run(stopper)
+}
+
+// HasSynced reports whether the node informer has completed its initial list and is
+// up to date, i.e. whether the controller has a working view of the cluster's nodes.
+// It is used as the readiness signal for the HTTP health service (see internal/health).
+func (c *Controller) HasSynced() bool {
+	informer, ok := c.informer.Load().(cache.SharedIndexInformer)
+	return ok && informer.HasSynced()
 }
 
 func (c *Controller) handleNode(obj interface{}) {

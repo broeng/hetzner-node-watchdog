@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 
 	"github.com/hetznercloud/hcloud-go/hcloud"
@@ -15,6 +16,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 
 	"github.com/broeng/hetzner-node-watchdog/internal/config"
+	"github.com/broeng/hetzner-node-watchdog/internal/health"
 	"github.com/broeng/hetzner-node-watchdog/internal/nodecontroller"
 )
 
@@ -83,9 +85,15 @@ func main() {
 	)
 
 	nc := nodecontroller.New(logger, k8s, hcc)
+	hc := health.New(logger, ctx, nc, config.Global.HealthListenPort)
 
-	// blocks until ctx is cancelled (SIGINT/SIGTERM)
-	nc.Run(ctx)
+	var wg sync.WaitGroup
+	wg.Go(hc.Run)
+	wg.Go(func() {
+		nc.Run(ctx)
+		stop() // in case nc.Run ever returns before ctx is cancelled, shut health down too
+	})
+	wg.Wait()
 
 	logger.Info("shutting down")
 }

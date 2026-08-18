@@ -18,5 +18,7 @@ var Global struct {
 
 	PollInterval *Duration `id:"poll-interval" desc:"how often to check for nodes due a restart" default:"60s" opts:"hidden"`
 
+	HealthListenPort int `id:"port" desc:"listen port for the HTTP health service" default:"8080"`
+
 	Version bool `id:"version" desc:"show version and quit" opts:"hidden"`
 }
