@@ -80,7 +80,9 @@ spec:
           args:
             - run
             - --extra-experimental-features
-            - "flakes nix-command"
+            - flakes
+            - --extra-experimental-features
+            - nix-command
             - {{ $root.Values.flakeRef }}
             - --
             - --log-level={{ $config.logLevel }}
