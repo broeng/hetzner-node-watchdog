@@ -2,3 +2,4 @@
 *.test
 /.claude
 hetzner-node-watchdog
+result

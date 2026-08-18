@@ -9,6 +9,8 @@ node names must be identical to the corresponding Hetzner Cloud server names
 (this is the default on most Hetzner-based Kubernetes setups, e.g. clusters
 provisioned with Hetzner's cloud-controller-manager).
 
+This utility has been produced using Claude.
+
 ## How it works
 
 For each node, the controller tracks a single `restart due at` timestamp:
