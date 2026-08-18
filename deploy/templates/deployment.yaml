@@ -1,55 +1,74 @@
+{{/*
+Renders one Deployment. Takes a dict: "root" (the chart's root context),
+"suffix" ("primary" or "secondary"), and "config" (the resolved config.*
+values for this instance).
+*/}}
+{{- define "hetzner-node-watchdog.deployment" -}}
+{{- $root := .root -}}
+{{- $suffix := .suffix -}}
+{{- $config := .config -}}
+{{- $autoAffinity := dict -}}
+{{- if $root.Values.secondary.enabled -}}
+{{- $antiAffinityLabels := include "hetzner-node-watchdog.selectorLabels" $root | fromYaml -}}
+{{- $autoAffinity = dict "podAntiAffinity" (dict "requiredDuringSchedulingIgnoredDuringExecution" (list (dict "topologyKey" "kubernetes.io/hostname" "labelSelector" (dict "matchLabels" $antiAffinityLabels)))) -}}
+{{- end -}}
+{{- $affinity := merge (deepCopy ($root.Values.affinity | default dict)) $autoAffinity -}}
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "hetzner-node-watchdog.fullname" . }}
-  namespace: {{ .Release.Namespace }}
+  name: {{ include "hetzner-node-watchdog.instanceFullname" (list $root $suffix) }}
+  namespace: {{ $root.Release.Namespace }}
   labels:
-    {{- include "hetzner-node-watchdog.labels" . | nindent 4 }}
+    {{- include "hetzner-node-watchdog.labels" $root | nindent 4 }}
+    app.kubernetes.io/component: {{ $suffix }}
 spec:
-  # Exactly one replica: restart scheduling is kept in memory per pod with no
-  # leader election, so running more than one pod risks duplicate/racing
-  # restart attempts.
+  # Exactly one replica per instance: restart scheduling is kept in memory
+  # per pod with no leader election, so running more than one pod per
+  # instance risks duplicate/racing restart attempts. Use secondary.enabled
+  # for redundancy instead of scaling this up.
   replicas: 1
   strategy:
     type: Recreate
   selector:
     matchLabels:
-      {{- include "hetzner-node-watchdog.selectorLabels" . | nindent 6 }}
+      {{- include "hetzner-node-watchdog.selectorLabels" $root | nindent 6 }}
+      app.kubernetes.io/component: {{ $suffix }}
   template:
     metadata:
       labels:
-        {{- include "hetzner-node-watchdog.selectorLabels" . | nindent 8 }}
-        {{- with .Values.podLabels }}
+        {{- include "hetzner-node-watchdog.selectorLabels" $root | nindent 8 }}
+        app.kubernetes.io/component: {{ $suffix }}
+        {{- with $root.Values.podLabels }}
         {{- toYaml . | nindent 8 }}
         {{- end }}
-      {{- with .Values.podAnnotations }}
+      {{- with $root.Values.podAnnotations }}
       annotations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
-      serviceAccountName: {{ include "hetzner-node-watchdog.serviceAccountName" . }}
-      {{- with .Values.nodeSelector }}
+      serviceAccountName: {{ include "hetzner-node-watchdog.serviceAccountName" $root }}
+      {{- with $root.Values.nodeSelector }}
       nodeSelector:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.tolerations }}
+      {{- with $root.Values.tolerations }}
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.affinity }}
+      {{- if $affinity }}
       affinity:
-        {{- toYaml . | nindent 8 }}
+        {{- toYaml $affinity | nindent 8 }}
       {{- end }}
       containers:
-        - name: {{ .Chart.Name }}
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+        - name: {{ $root.Chart.Name }}
+          image: "{{ $root.Values.image.repository }}:{{ $root.Values.image.tag }}"
+          imagePullPolicy: {{ $root.Values.image.pullPolicy }}
           env:
             - name: HCLOUD_TOKEN
               valueFrom:
                 secretKeyRef:
-                  name: {{ include "hetzner-node-watchdog.secretName" . }}
-                  key: {{ include "hetzner-node-watchdog.secretKey" . }}
+                  name: {{ include "hetzner-node-watchdog.secretName" $root }}
+                  key: {{ include "hetzner-node-watchdog.secretKey" $root }}
           # Builds and runs the app straight from its flake on every pod start
           # (no pre-built image); the "--" hands everything after it to the
           # binary itself. Each arg below corresponds 1:1 to a CLI flag of the
@@ -62,13 +81,21 @@ spec:
             - run
             - --extra-experimental-features
             - "flakes nix-command"
-            - {{ .Values.flakeRef }}
+            - {{ $root.Values.flakeRef }}
             - --
-            - --log-level={{ .Values.config.logLevel }}
-            - --node-label-selector={{ .Values.config.nodeLabelSelector }}
-            - --timeout-duration={{ .Values.config.timeoutDuration }}
-            - --grace-period={{ .Values.config.gracePeriod }}
-            - --poll-interval={{ .Values.config.pollInterval }}
+            - --log-level={{ $config.logLevel }}
+            - --node-label-selector={{ $config.nodeLabelSelector }}
+            - --timeout-duration={{ $config.timeoutDuration }}
+            - --grace-period={{ $config.gracePeriod }}
+            - --poll-interval={{ $config.pollInterval }}
             - --hcloud-token=$(HCLOUD_TOKEN)
           resources:
-            {{- toYaml .Values.resources | nindent 12 }}
+            {{- toYaml $root.Values.resources | nindent 12 }}
+{{- end -}}
+
+{{ include "hetzner-node-watchdog.deployment" (dict "root" . "suffix" "primary" "config" .Values.config) }}
+{{- if .Values.secondary.enabled }}
+---
+{{ include "hetzner-node-watchdog.deployment" (dict "root" . "suffix" "secondary"
+     "config" (merge (deepCopy .Values.secondary.config) .Values.config)) }}
+{{- end }}

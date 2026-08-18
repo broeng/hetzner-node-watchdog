@@ -43,3 +43,17 @@ app.kubernetes.io/instance: {{ .Release.Name }}
 {{- define "hetzner-node-watchdog.secretKey" -}}
 {{- .Values.hcloud.existingSecretKey | default "hcloud-token" -}}
 {{- end -}}
+
+{{/*
+Per-instance Deployment name. Takes a two-element list: (list $root $suffix),
+e.g. "primary" or "secondary". Appends "-<suffix>" to the chart fullname.
+*/}}
+{{- define "hetzner-node-watchdog.instanceFullname" -}}
+{{- $root := index . 0 -}}
+{{- $suffix := index . 1 -}}
+{{- if $suffix -}}
+{{- printf "%s-%s" (include "hetzner-node-watchdog.fullname" $root) $suffix | trunc 63 | trimSuffix "-" -}}
+{{- else -}}
+{{- include "hetzner-node-watchdog.fullname" $root -}}
+{{- end -}}
+{{- end -}}

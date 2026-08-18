@@ -85,6 +85,19 @@ directly. Set `hcloud.existingSecret` (+ `hcloud.existingSecretKey`, default
 yourself. The chart also creates the ServiceAccount and the minimal
 ClusterRole it needs (`get`/`watch`/`list` on `nodes`).
 
+### Redundancy without leader election
+
+Set `secondary.enabled=true` to run a second "secondary" Deployment alongside
+the primary, with pod anti-affinity so the two never land on the same node.
+The secondary uses its own `secondary.config.timeoutDuration`/`gracePeriod`
+(default `60m`/`60m`, much longer than the primary's) — any `config.*` field
+left unset under `secondary.config` falls back to the primary's value. This
+is deliberately not leader election: both instances watch and act
+independently, so the secondary's long timeout is what stops it from racing
+the primary under normal conditions, at the cost of a real (if rare) window
+where an unavailable node goes unrestarted until the secondary's own timeout
+elapses, should the primary itself go down.
+
 ## Building
 
 ```sh

@@ -7,7 +7,13 @@ the server behind any node that stays unavailable for longer than
 trying again.
 
 Check logs with:
-  kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "hetzner-node-watchdog.fullname" . }} -f
+  kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "hetzner-node-watchdog.instanceFullname" (list . "primary") }} -f
+{{- if .Values.secondary.enabled }}
+  kubectl -n {{ .Release.Namespace }} logs deploy/{{ include "hetzner-node-watchdog.instanceFullname" (list . "secondary") }} -f
 
-Only one replica should ever run: restart scheduling is kept in memory per
-pod with no leader election.
+A secondary instance is also running, with timeoutDuration={{ .Values.secondary.config.timeoutDuration | default .Values.config.timeoutDuration }}
+and gracePeriod={{ .Values.secondary.config.gracePeriod | default .Values.config.gracePeriod }}. It only acts if the primary itself is stuck or down.
+{{- end }}
+
+Only one replica per instance should ever run: restart scheduling is kept in
+memory per pod with no leader election.

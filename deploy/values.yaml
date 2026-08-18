@@ -63,3 +63,23 @@ config:
   gracePeriod: 10m
   # -- --poll-interval: how often to check for nodes due a restart
   pollInterval: 60s
+
+# Optional second "secondary" instance for redundancy without leader
+# election: give it a much longer timeoutDuration/gracePeriod than the
+# primary so it only ever restarts a node if the primary instance is itself
+# stuck or down, not in the ordinary case where the primary is doing its job.
+# When enabled, the primary and secondary get required pod anti-affinity
+# against each other so they're never scheduled on the same node - if that
+# node goes down, at most one instance is lost with it.
+#
+# This is a cheaper alternative to leader election: it accepts a bounded
+# window (the secondary's timeoutDuration) where a node could go unnoticed by
+# the primary without a restart being triggered at all, in exchange for not
+# needing coordination between instances.
+secondary:
+  enabled: false
+  # Any field left unset here falls back to the corresponding top-level
+  # config.* value used by the primary instance.
+  config:
+    timeoutDuration: 60m
+    gracePeriod: 60m
