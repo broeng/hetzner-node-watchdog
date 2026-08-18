@@ -15,7 +15,7 @@
       let
         pkgs = import nixpkgs { inherit system; };
 
-        hetzner-node-watchdog = pkgs.buildGoModule {
+        hetzner-node-watchdog = pkgs.buildGoModule rec {
           pname = "hetzner-node-watchdog";
           version = "0.1.1";
 
@@ -25,7 +25,7 @@
           vendorHash = "sha256-6I1uig4PJnA+wOKLVGG59EMATIRk5S2F7UfsS26+MIo=";
 
           env.CGO_ENABLED = 0;
-          ldflags = [ "-X main.version=0.1.0" ];
+          ldflags = [ "-X main.version=${version}" ];
 
           meta = {
             description = "Restarts the Hetzner Cloud server behind a Kubernetes node that stays unavailable too long";
