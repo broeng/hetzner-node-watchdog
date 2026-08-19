@@ -32,6 +32,7 @@ type Controller struct {
 	logger       logrus.FieldLogger
 	k8s          kubernetes.Interface
 	hcloudClient hcloudClienter
+	cfg          *config.Configuration
 
 	state   map[string]*nodeState
 	stateMu sync.RWMutex
@@ -42,11 +43,12 @@ type Controller struct {
 	informer atomic.Value // cache.SharedIndexInformer
 }
 
-func New(logger logrus.FieldLogger, k8s kubernetes.Interface, hcc *hcloud.Client) *Controller {
+func New(logger logrus.FieldLogger, k8s kubernetes.Interface, hcc *hcloud.Client, cfg *config.Configuration) *Controller {
 	return &Controller{
 		logger:       logger.WithField("component", "nodecontroller"),
 		k8s:          k8s,
 		hcloudClient: hcloudClient{hcc},
+		cfg:          cfg,
 		state:        make(map[string]*nodeState),
 	}
 }
@@ -56,9 +58,9 @@ func New(logger logrus.FieldLogger, k8s kubernetes.Interface, hcc *hcloud.Client
 func (c *Controller) Run(ctx context.Context) {
 	factory := informers.NewSharedInformerFactoryWithOptions(
 		c.k8s,
-		time.Duration(*config.Global.PollInterval),
+		c.cfg.PollInterval,
 		informers.WithTweakListOptions(func(listOpts *metav1.ListOptions) {
-			listOpts.LabelSelector = config.Global.NodeLabelSelector
+			listOpts.LabelSelector = c.cfg.NodeLabelSelector
 		}),
 	)
 	nodeInformer := factory.Core().V1().Nodes().Informer()
@@ -126,14 +128,14 @@ func (c *Controller) handleNode(obj interface{}) {
 		return
 	}
 
-	if config.Global.IgnoreCordoned && node.Spec.Unschedulable {
-		// Cordoning is a strong signal that a human or another controller (drain,
-		// cluster-autoscaler scale-down, etc.) is already handling this node; don't
-		// fight that by resetting its server out from under them. If the node was
-		// already being tracked when it got cordoned, drop that tracking rather than
-		// let it restart on the old schedule.
+	if reason, ignored := c.nodeIsIgnored(node); ignored {
+		// A human or another controller is already handling this node deliberately
+		// (cordoned, drained, marked via a label/taint); don't fight that by
+		// resetting its server out from under them. If the node was already being
+		// tracked when it started matching, drop that tracking rather than let it
+		// restart on the old schedule.
 		if c.clearNodeState(node.Name) {
-			logger.Info("node is cordoned; cleared tracked restart state and will not restart its server while it remains cordoned")
+			logger.WithField("reason", reason).Info("node is ignored; cleared tracked restart state and will not restart its server while ignored")
 		}
 		return
 	}
@@ -141,6 +143,18 @@ func (c *Controller) handleNode(obj interface{}) {
 	if restartAt, justTracked := c.trackNodeUnavailable(node.Name); justTracked {
 		logger.WithField("restart_due_at", restartAt).Warn("node became unavailable; will restart its Hetzner server if it does not recover in time")
 	}
+}
+
+// nodeIsIgnored reports whether the node should be left alone entirely - neither
+// tracked nor restarted - regardless of its readiness, along with a short reason for
+// logging. It's checked separately from nodeIsAvailable because these are static
+// "don't touch this node" criteria (all parsed once into c.cfg by config.Load) rather
+// than a health signal.
+func (c *Controller) nodeIsIgnored(node *corev1.Node) (string, bool) {
+	if c.cfg.IgnoreCordoned && node.Spec.Unschedulable {
+		return "node is cordoned", true
+	}
+	return "", false
 }
 
 func nodeIsAvailable(node *corev1.Node) bool {
@@ -171,7 +185,7 @@ func (c *Controller) trackNodeUnavailable(name string) (time.Time, bool) {
 	}
 
 	now := time.Now()
-	restartAt := now.Add(time.Duration(*config.Global.TimeoutDuration))
+	restartAt := now.Add(c.cfg.TimeoutDuration)
 	c.state[name] = &nodeState{
 		unavailableSince: now,
 		nextActionAt:     restartAt,
@@ -191,7 +205,7 @@ func (c *Controller) clearNodeState(name string) bool {
 }
 
 func (c *Controller) runRestartLoop(ctx context.Context) {
-	ticker := time.NewTicker(time.Duration(*config.Global.PollInterval))
+	ticker := time.NewTicker(c.cfg.PollInterval)
 	defer ticker.Stop()
 
 	for {
@@ -234,7 +248,7 @@ func (c *Controller) restartNode(ctx context.Context, name string) {
 	// Reschedule immediately, before the restart attempt runs, so a slow hcloud API
 	// call or a failed attempt doesn't get retried on every subsequent poll tick.
 	// The node gets a fresh grace period regardless of the outcome below.
-	st.nextActionAt = time.Now().Add(time.Duration(*config.Global.GracePeriod))
+	st.nextActionAt = time.Now().Add(c.cfg.GracePeriod)
 	st.restartCount++
 	attempt := st.restartCount
 	graceUntil := st.nextActionAt

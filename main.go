@@ -10,7 +10,6 @@ import (
 
 	"github.com/hetznercloud/hcloud-go/hcloud"
 	"github.com/sirupsen/logrus"
-	"github.com/stevenroose/gonfig"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -27,32 +26,22 @@ var version = "unreleased"
 func main() {
 	logger := logrus.New()
 
-	if err := gonfig.Load(&config.Global, gonfig.Conf{
-		EnvPrefix:         "NODE_WATCHDOG_",
-		FlagIgnoreUnknown: false,
-	}); err != nil {
+	cfg, err := config.Load()
+	if err != nil {
 		logger.Fatalf("could not parse options: %s", err)
 	}
 
-	if config.Global.Version {
+	if cfg.Version {
 		fmt.Println(version)
 		os.Exit(0)
 	}
 
-	if level, err := logrus.ParseLevel(config.Global.LogLevel); err != nil {
-		logger.Fatalf("could not set log level to %s: %s", config.Global.LogLevel, err)
-	} else {
-		logger.SetLevel(level)
-	}
-
-	if config.Global.HCloudToken == "" {
-		logger.Fatal("hcloud-token (env NODE_WATCHDOG_HCLOUD_TOKEN) is required")
-	}
+	logger.SetLevel(cfg.LogLevel)
 
 	logger.WithFields(logrus.Fields{
 		"version":          version,
-		"timeout_duration": config.Global.TimeoutDuration,
-		"grace_period":     config.Global.GracePeriod,
+		"timeout_duration": cfg.TimeoutDuration,
+		"grace_period":     cfg.GracePeriod,
 	}).Info("starting hetzner node watchdog")
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -60,17 +49,17 @@ func main() {
 
 	var k8sCfg *rest.Config
 	if os.Getenv("KUBERNETES_SERVICE_HOST") != "" {
-		cfg, err := rest.InClusterConfig()
+		restCfg, err := rest.InClusterConfig()
 		if err != nil {
 			logger.Fatalf("could not init in-cluster config: %s", err)
 		}
-		k8sCfg = cfg
+		k8sCfg = restCfg
 	} else {
-		cfg, err := clientcmd.BuildConfigFromKubeconfigGetter("", clientcmd.NewDefaultClientConfigLoadingRules().Load)
+		restCfg, err := clientcmd.BuildConfigFromKubeconfigGetter("", clientcmd.NewDefaultClientConfigLoadingRules().Load)
 		if err != nil {
 			logger.Fatalf("could not init kubeconfig: %s", err)
 		}
-		k8sCfg = cfg
+		k8sCfg = restCfg
 	}
 
 	k8s, err := kubernetes.NewForConfig(k8sCfg)
@@ -80,12 +69,12 @@ func main() {
 
 	hcc := hcloud.NewClient(
 		hcloud.WithApplication(serviceName, version),
-		hcloud.WithToken(config.Global.HCloudToken),
+		hcloud.WithToken(cfg.HCloudToken),
 		hcloud.WithDebugWriter(logger.WithFields(logrus.Fields{"component": "hcloud"}).WriterLevel(logrus.DebugLevel)),
 	)
 
-	nc := nodecontroller.New(logger, k8s, hcc)
-	hc := health.New(logger, ctx, nc, config.Global.HealthListenPort)
+	nc := nodecontroller.New(logger, k8s, hcc, cfg)
+	hc := health.New(logger, ctx, nc, cfg.HealthListenPort)
 
 	var wg sync.WaitGroup
 	wg.Go(hc.Run)
