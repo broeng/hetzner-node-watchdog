@@ -88,6 +88,7 @@ spec:
             - --
             - --log-level={{ $config.logLevel }}
             - --node-label-selector={{ $config.nodeLabelSelector }}
+            - --ignore-cordoned={{ $config.ignoreCordoned }}
             - --timeout-duration={{ $config.timeoutDuration }}
             - --grace-period={{ $config.gracePeriod }}
             - --poll-interval={{ $config.pollInterval }}

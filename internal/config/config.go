@@ -8,6 +8,7 @@ var Global struct {
 
 	HCloudToken       string `id:"hcloud-token" desc:"API token for Hetzner Cloud access"`
 	NodeLabelSelector string `id:"node-label-selector" desc:"label selector used to match nodes to watch" default:""`
+	IgnoreCordoned    bool   `id:"ignore-cordoned" desc:"do not restart the server behind a cordoned (unschedulable) node" default:"true"`
 
 	// TimeoutDuration and GracePeriod are both folded into a single "next restart
 	// due" timestamp per node (see nodecontroller.nodeState): TimeoutDuration sets

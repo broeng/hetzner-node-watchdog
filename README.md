@@ -42,6 +42,7 @@ or a config file, in increasing order of priority.
 |------------------------------------|-------------------------|--------------------------------------------------------------------------|---------|
 | `NODE_WATCHDOG_HCLOUD_TOKEN`        | `--hcloud-token`        | Hetzner Cloud API token (required)                                       | —       |
 | `NODE_WATCHDOG_NODE_LABEL_SELECTOR` | `--node-label-selector` | Label selector to restrict which nodes are watched                       | `""` (all nodes) |
+| `NODE_WATCHDOG_IGNORE_CORDONED`     | `--ignore-cordoned`     | Skip (and stop tracking) cordoned nodes                                  | `true` |
 | `NODE_WATCHDOG_TIMEOUT_DURATION`    | `--timeout-duration`    | How long a node may stay `NotReady` before its server is restarted       | `10m`   |
 | `NODE_WATCHDOG_GRACE_PERIOD`        | `--grace-period`        | How long to wait after a restart before restarting again if still down   | `10m`   |
 | `NODE_WATCHDOG_LOG_LEVEL`           | `--log-level` / `-l`    | Log verbosity (`debug`/`info`/`warn`/`error`)                            | `info`  |

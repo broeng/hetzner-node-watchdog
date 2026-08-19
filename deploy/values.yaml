@@ -56,6 +56,10 @@ config:
   # -- --node-label-selector: label selector restricting which nodes are
   # watched; empty means all nodes in the cluster
   nodeLabelSelector: ""
+  # -- --ignore-cordoned: do not restart the server behind a cordoned
+  # (unschedulable) node, since cordoning usually means a human or
+  # controller is already handling it
+  ignoreCordoned: true
   # -- --timeout-duration: how long a node may stay NotReady before its
   # Hetzner server is restarted (Go duration, e.g. "5m", "90s")
   timeoutDuration: 10m

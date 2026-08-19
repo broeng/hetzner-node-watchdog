@@ -126,6 +126,18 @@ func (c *Controller) handleNode(obj interface{}) {
 		return
 	}
 
+	if config.Global.IgnoreCordoned && node.Spec.Unschedulable {
+		// Cordoning is a strong signal that a human or another controller (drain,
+		// cluster-autoscaler scale-down, etc.) is already handling this node; don't
+		// fight that by resetting its server out from under them. If the node was
+		// already being tracked when it got cordoned, drop that tracking rather than
+		// let it restart on the old schedule.
+		if c.clearNodeState(node.Name) {
+			logger.Info("node is cordoned; cleared tracked restart state and will not restart its server while it remains cordoned")
+		}
+		return
+	}
+
 	if restartAt, justTracked := c.trackNodeUnavailable(node.Name); justTracked {
 		logger.WithField("restart_due_at", restartAt).Warn("node became unavailable; will restart its Hetzner server if it does not recover in time")
 	}
