@@ -43,6 +43,8 @@ or a config file, in increasing order of priority.
 | `NODE_WATCHDOG_HCLOUD_TOKEN`        | `--hcloud-token`        | Hetzner Cloud API token (required)                                       | —       |
 | `NODE_WATCHDOG_NODE_LABEL_SELECTOR` | `--node-label-selector` | Label selector to restrict which nodes are watched                       | `""` (all nodes) |
 | `NODE_WATCHDOG_IGNORE_CORDONED`     | `--ignore-cordoned`     | Skip (and stop tracking) cordoned nodes                                  | `true` |
+| `NODE_WATCHDOG_IGNORE_NODE_LABEL_SELECTOR` | `--ignore-node-label-selector` | Label selector(s); a node matching any of them is never restarted (comma-separated; quote an entry to embed a literal comma) | `""` (none) |
+| `NODE_WATCHDOG_IGNORE_NODE_TAINT_SELECTOR` | `--ignore-node-taint-selector` | Taint selector(s) in `kubectl taint` syntax (`key`, `key=value`, `key:effect`, or `key=value:effect`; omitted parts act as wildcards); a node carrying a taint matching any of them is never restarted (comma-separated) | `node.cloudprovider.kubernetes.io/shutdown` |
 | `NODE_WATCHDOG_TIMEOUT_DURATION`    | `--timeout-duration`    | How long a node may stay `NotReady` before its server is restarted       | `10m`   |
 | `NODE_WATCHDOG_GRACE_PERIOD`        | `--grace-period`        | How long to wait after a restart before restarting again if still down   | `10m`   |
 | `NODE_WATCHDOG_LOG_LEVEL`           | `--log-level` / `-l`    | Log verbosity (`debug`/`info`/`warn`/`error`)                            | `info`  |

@@ -89,6 +89,12 @@ spec:
             - --log-level={{ $config.logLevel }}
             - --node-label-selector={{ $config.nodeLabelSelector }}
             - --ignore-cordoned={{ $config.ignoreCordoned }}
+            {{- if $config.ignoreNodeLabelSelector }}
+            - --ignore-node-label-selector={{ join "," $config.ignoreNodeLabelSelector }}
+            {{- end }}
+            {{- if $config.ignoreNodeTaintSelector }}
+            - --ignore-node-taint-selector={{ join "," $config.ignoreNodeTaintSelector }}
+            {{- end }}
             - --timeout-duration={{ $config.timeoutDuration }}
             - --grace-period={{ $config.gracePeriod }}
             - --poll-interval={{ $config.pollInterval }}

@@ -10,6 +10,7 @@ import (
 	"github.com/sirupsen/logrus"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -154,7 +155,40 @@ func (c *Controller) nodeIsIgnored(node *corev1.Node) (string, bool) {
 	if c.cfg.IgnoreCordoned && node.Spec.Unschedulable {
 		return "node is cordoned", true
 	}
+	if nodeMatchesAnyLabelSelector(node, c.cfg.IgnoreNodeLabelSelector) {
+		return "node matches an --ignore-node-label-selector", true
+	}
+	if nodeMatchesAnyTaintSelector(node, c.cfg.IgnoreNodeTaintSelector) {
+		return "node matches an --ignore-node-taint-selector", true
+	}
 	return "", false
+}
+
+func nodeMatchesAnyLabelSelector(node *corev1.Node, selectors []labels.Selector) bool {
+	if len(selectors) == 0 {
+		return false
+	}
+	set := labels.Set(node.Labels)
+	for _, sel := range selectors {
+		if sel.Matches(set) {
+			return true
+		}
+	}
+	return false
+}
+
+func nodeMatchesAnyTaintSelector(node *corev1.Node, selectors []config.TaintSelector) bool {
+	if len(selectors) == 0 {
+		return false
+	}
+	for _, taint := range node.Spec.Taints {
+		for _, sel := range selectors {
+			if sel.Matches(taint) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func nodeIsAvailable(node *corev1.Node) bool {

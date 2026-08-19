@@ -6,6 +6,7 @@ import (
 
 	"github.com/sirupsen/logrus"
 	"github.com/stevenroose/gonfig"
+	"k8s.io/apimachinery/pkg/labels"
 )
 
 // flags mirrors the CLI flags/env vars/config file 1:1 and exists purely as gonfig's
@@ -17,6 +18,14 @@ var flags struct {
 	HCloudToken       string `id:"hcloud-token" desc:"API token for Hetzner Cloud access"`
 	NodeLabelSelector string `id:"node-label-selector" desc:"label selector used to match nodes to watch" default:""`
 	IgnoreCordoned    bool   `id:"ignore-cordoned" desc:"do not restart the server behind a cordoned (unschedulable) node" default:"true"`
+
+	// IgnoreNodeLabelSelector and IgnoreNodeTaintSelector are both "ignore this node
+	// entirely" filters (see Configuration.IgnoreNodeLabelSelector/IgnoreNodeTaintSelector):
+	// a node matching any entry is neither tracked nor restarted. Each is a list
+	// (comma-separated on the CLI/in env vars; quote an entry to embed a literal comma
+	// in it), matching if ANY entry matches.
+	IgnoreNodeLabelSelector []string `id:"ignore-node-label-selector" desc:"label selector(s); a node matching any of them is never restarted" default:""`
+	IgnoreNodeTaintSelector []string `id:"ignore-node-taint-selector" desc:"taint selector(s) in kubectl-taint syntax (key, key=value, key:effect or key=value:effect, with omitted parts acting as wildcards); a node carrying a taint matching any of them is never restarted" default:"node.cloudprovider.kubernetes.io/shutdown"`
 
 	// TimeoutDuration and GracePeriod are both folded into a single "next restart
 	// due" timestamp per node (see nodecontroller.nodeState): TimeoutDuration sets
@@ -46,6 +55,8 @@ type Configuration struct {
 	NodeLabelSelector string
 
 	IgnoreCordoned          bool
+	IgnoreNodeLabelSelector []labels.Selector
+	IgnoreNodeTaintSelector []TaintSelector
 
 	TimeoutDuration time.Duration
 	GracePeriod     time.Duration
@@ -78,6 +89,16 @@ func Load() (*Configuration, error) {
 		return nil, fmt.Errorf("hcloud-token (env NODE_WATCHDOG_HCLOUD_TOKEN) is required")
 	}
 
+	ignoreNodeLabelSelector, err := parseLabelSelectors(flags.IgnoreNodeLabelSelector)
+	if err != nil {
+		return nil, fmt.Errorf("--ignore-node-label-selector: %w", err)
+	}
+
+	ignoreNodeTaintSelector, err := parseTaintSelectors(flags.IgnoreNodeTaintSelector)
+	if err != nil {
+		return nil, fmt.Errorf("--ignore-node-taint-selector: %w", err)
+	}
+
 	return &Configuration{
 		LogLevel: level,
 
@@ -85,6 +106,8 @@ func Load() (*Configuration, error) {
 		NodeLabelSelector: flags.NodeLabelSelector,
 
 		IgnoreCordoned:          flags.IgnoreCordoned,
+		IgnoreNodeLabelSelector: ignoreNodeLabelSelector,
+		IgnoreNodeTaintSelector: ignoreNodeTaintSelector,
 
 		TimeoutDuration: time.Duration(*flags.TimeoutDuration),
 		GracePeriod:     time.Duration(*flags.GracePeriod),

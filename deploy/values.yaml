@@ -60,6 +60,15 @@ config:
   # (unschedulable) node, since cordoning usually means a human or
   # controller is already handling it
   ignoreCordoned: true
+  # -- --ignore-node-label-selector: label selector(s); a node matching any
+  # of them is never restarted. Only rendered as an arg when non-empty.
+  ignoreNodeLabelSelector: []
+  # -- --ignore-node-taint-selector: taint selector(s) in kubectl-taint
+  # syntax (key, key=value, key:effect or key=value:effect); a node
+  # carrying a taint matching any of them is never restarted. Only
+  # rendered as an arg when non-empty.
+  ignoreNodeTaintSelector:
+    - node.cloudprovider.kubernetes.io/shutdown
   # -- --timeout-duration: how long a node may stay NotReady before its
   # Hetzner server is restarted (Go duration, e.g. "5m", "90s")
   timeoutDuration: 10m
