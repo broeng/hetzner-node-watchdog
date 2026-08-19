@@ -25,7 +25,7 @@ serviceAccount:
 
 resources:
   requests:
-    memory: 64Mi
+    memory: 512Mi
     cpu: 50m
 
 probes:
