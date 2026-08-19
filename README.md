@@ -35,9 +35,7 @@ restarts.
 
 ## Configuration
 
-Configuration follows the same [gonfig](https://github.com/stevenroose/gonfig)-based
-approach as [hcloud-ip-floater](https://github.com/broeng/hcloud-ip-floater):
-values can come from CLI flags, environment variables (prefix `NODE_WATCHDOG_`),
+Settings can come from CLI flags, environment variables (prefix `NODE_WATCHDOG_`),
 or a config file, in increasing order of priority.
 
 | Variable                          | Flag                    | Purpose                                                                 | Default |

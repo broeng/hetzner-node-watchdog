@@ -16,9 +16,7 @@ type ReadinessChecker interface {
 	HasSynced() bool
 }
 
-// Controller runs an HTTP server exposing Kubernetes liveness/readiness probe
-// endpoints, following the same shape used in
-// https://github.com/broeng/livekit-configurator's internal/health package.
+// Controller runs an HTTP server exposing Kubernetes liveness/readiness probe endpoints
 type Controller struct {
 	logger     logrus.FieldLogger
 	ctx        context.Context
