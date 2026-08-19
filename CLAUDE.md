@@ -15,6 +15,8 @@ it here, but do keep it in sync when changing `internal/config`.
 ```sh
 go build .                              # build the binary
 go vet ./...                            # static checks
+go test ./...                           # run tests (currently: internal/config only)
+go test ./internal/config/... -run TestLoadDefaults -v  # run a single test
 go run . --log-level=debug              # run locally against current kubeconfig context
 NODE_WATCHDOG_HCLOUD_TOKEN=... go run . # hcloud token is required; no default
 nix build .#hetzner-node-watchdog       # build via flake (mirrors CI/deploy path)
@@ -23,32 +25,52 @@ helm lint deploy --set hcloud.token=x   # lint the chart directly
 helm template deploy --set hcloud.token=x  # render chart templates locally
 ```
 
-There are no test files in the repo currently (`go test ./...` has nothing to run).
+`internal/config`'s tests call `Load()` directly, which reads `os.Args`/env vars — they
+replace `os.Args` for the duration of each test (see `withArgs` in `config_test.go`) rather
+than relying on `go test`'s own flags not tripping gonfig's flag parser (which errors on any
+argument it doesn't recognize). Follow that pattern for any new test that calls `Load()`.
+`internal/nodecontroller` and `internal/health` have no tests yet.
 
 ## Architecture
 
-`main.go` wires everything together and does nothing else: loads config, builds the k8s
-client (in-cluster if `KUBERNETES_SERVICE_HOST` is set, else kubeconfig), builds the hcloud
+`main.go` wires everything together and does nothing else: calls `config.Load()`, builds the
+k8s client (in-cluster if `KUBERNETES_SERVICE_HOST` is set, else kubeconfig), builds the hcloud
 client, constructs `nodecontroller.Controller` and `health.Controller`, and runs both under a
-shared `context` cancelled on SIGTERM/SIGINT.
+shared `context` cancelled on SIGTERM/SIGINT. `main` never touches CLI-flag/env-var details
+directly — it only ever sees `*config.Configuration`.
 
-- **`internal/config`** — a single global config struct (`config.Global`) loaded once via
-  `gonfig.Load` (CLI flags > env vars prefixed `NODE_WATCHDOG_` > config file > struct
-  defaults). `duration.go` defines a `Duration` type wrapping `time.Duration` with
-  `UnmarshalText` so duration fields parse `"5m"`-style strings instead of raw nanoseconds —
-  follow this pattern for any new duration-typed field.
+- **`internal/config`** — the only package that knows about gonfig/CLI flags/env vars; that
+  raw, string-typed shape (`rawFlags`, unexported, local to `Load()`) never leaves the package.
+  `Load()` parses it (CLI flags > env vars prefixed `NODE_WATCHDOG_` > config file > struct
+  defaults, via `gonfig.Load`), validates it (log level, required hcloud token, selector
+  syntax), and returns the exported `*Configuration` — fully-typed (`time.Duration`,
+  `logrus.Level`, `[]labels.Selector`, `[]TaintSelector`) and ready to use, which is the only
+  thing the rest of the app depends on. `duration.go` defines an unexported `duration` type
+  wrapping `time.Duration` with `UnmarshalText` so gonfig parses `"5m"`-style strings instead of
+  raw nanoseconds — follow this pattern for any new duration-typed raw field.
+  `selectors.go` parses the `--ignore-node-label-selector`/`--ignore-node-taint-selector` flags
+  (each a comma-separated list, OR'd together; quote an entry to embed a literal comma) into
+  `[]labels.Selector` and `[]TaintSelector` respectively — `TaintSelector` mirrors
+  `kubectl taint`'s `key[=value][:effect]` syntax, with an omitted value/effect acting as a
+  wildcard. If you add another selector-shaped flag, parse it here too, not in the consuming
+  package.
 
-- **`internal/nodecontroller`** — the core logic. Central design point: each unavailable node
-  gets a single `nextActionAt` timestamp (in `nodeState`, `nodecontroller.go`) that does double
-  duty — `TimeoutDuration` seeds it when a node is first observed unavailable, and
-  `GracePeriod` resets it after every restart attempt. A k8s informer drives node
-  add/update/delete events (`handleNode`); a separate ticker loop (`runRestartLoop`) scans for
-  nodes past their `nextActionAt` and restarts them (`Server.Reset`, a hardware reset, not a
-  graceful reboot). State is in-memory only (`map[string]*nodeState` + `sync.RWMutex`) — no
-  persistence, no leader election, so **only one replica of a given instance should ever run**.
-  `hcloud.go` wraps the hcloud client behind small interfaces (`hcloudClienter`,
-  `hcloudServerer`, `hcloudActioner`) purely to make it mockable; extend those interfaces
-  rather than calling `*hcloud.Client` methods directly from new code in this package.
+- **`internal/nodecontroller`** — the core logic. Consumes a `*config.Configuration` (passed
+  into `New` and stored on `Controller`) — it never parses config itself, only applies the
+  already-parsed values. Central design point: each unavailable node gets a single
+  `nextActionAt` timestamp (in `nodeState`, `nodecontroller.go`) that does double duty —
+  `TimeoutDuration` seeds it when a node is first observed unavailable, and `GracePeriod`
+  resets it after every restart attempt. A k8s informer drives node add/update/delete events
+  (`handleNode`); a separate ticker loop (`runRestartLoop`) scans for nodes past their
+  `nextActionAt` and restarts them (`Server.Reset`, a hardware reset, not a graceful reboot).
+  Before tracking a node, `nodeIsIgnored` checks static "don't touch this node" criteria —
+  cordoned (if `IgnoreCordoned`), or matching an ignore label/taint selector — independent of
+  the node's actual readiness; matching clears any existing tracked state too. State is
+  in-memory only (`map[string]*nodeState` + `sync.RWMutex`) — no persistence, no leader
+  election, so **only one replica of a given instance should ever run**. `hcloud.go` wraps the
+  hcloud client behind small interfaces (`hcloudClienter`, `hcloudServerer`, `hcloudActioner`)
+  purely to make it mockable; extend those interfaces rather than calling `*hcloud.Client`
+  methods directly from new code in this package.
 
 - **`internal/health`** — a small HTTP server independent of the controller's own logic:
   `/healthz` is unconditional liveness, `/readyz` reflects `nodecontroller.Controller.HasSynced()`

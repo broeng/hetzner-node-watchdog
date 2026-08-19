@@ -9,10 +9,12 @@ import (
 	"k8s.io/apimachinery/pkg/labels"
 )
 
-// flags mirrors the CLI flags/env vars/config file 1:1 and exists purely as gonfig's
-// parse target; nothing outside this package sees it. Load is the only place that
-// reads it, validates it, and converts it into a Configuration.
-var flags struct {
+// rawFlags mirrors the CLI flags/env vars/config file 1:1 and exists purely as
+// gonfig's parse target; nothing outside this package sees it. Load is the only place
+// that populates it, validates it, and converts it into a Configuration. It's declared
+// as a type (rather than a package-level var, as gonfig examples typically do) so each
+// Load call gets a fresh, independent instance.
+type rawFlags struct {
 	LogLevel string `id:"log-level" short:"l" desc:"verbosity level for logs" default:"info"`
 
 	HCloudToken       string `id:"hcloud-token" desc:"API token for Hetzner Cloud access"`
@@ -69,6 +71,7 @@ type Configuration struct {
 // (prefixed NODE_WATCHDOG_) and an optional config file, in increasing order of
 // priority, validates it, and returns the parsed Configuration.
 func Load() (*Configuration, error) {
+	var flags rawFlags
 	if err := gonfig.Load(&flags, gonfig.Conf{
 		EnvPrefix:         "NODE_WATCHDOG_",
 		FlagIgnoreUnknown: false,
